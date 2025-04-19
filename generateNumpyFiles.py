@@ -23,12 +23,12 @@ def launchConversion(pathData, pathNumpy, resizeImg, imgSize):
 
     #Pour chaque classe
     for soundClasse in os.listdir(pathData):
-        pathSound = pathData + '\\' + soundClasse
+        pathSound = pathData + '/' + soundClasse
         imgs = []
 
         #Pour chaque image d'une classe, on la charge, resize et transforme en tableau
         for soundFile in tqdm(os.listdir(pathSound), "Conversion de la classe : '{}'".format(soundClasse)):
-            imgSoundPath = pathSound + '\\' + soundFile
+            imgSoundPath = pathSound + '/' + soundFile
             # Chargement de l'image
             y, sr = librosa.load(imgSoundPath)
             # Calcul du mel spectro selon notre audio
@@ -37,7 +37,7 @@ def launchConversion(pathData, pathNumpy, resizeImg, imgSize):
             # On convertit en image pour retaille la taille de l'image
             canvas = plt.get_current_fig_manager().canvas
             canvas.draw()
-            img = Image.frombytes('RGB', canvas.get_width_height(), canvas.tostring_rgb())
+            img = Image.frombytes('RGB', canvas.get_width_height(), canvas.tostring_argb())
 
             if resizeImg == True:
                 img = img.resize(size=imgSize)
@@ -55,7 +55,7 @@ def launchConversion(pathData, pathNumpy, resizeImg, imgSize):
         imgs = np.asarray(imgs) / 255.
 
         #Enregistre une classe entiere en un fichier numpy
-        np.save(pathNumpy + '\\ ' + soundClasse + '.npy', imgs)
+        np.save(pathNumpy + '/ ' + soundClasse + '.npy', imgs)
 
 
 def main():
@@ -63,8 +63,8 @@ def main():
     # Fonction main
     """
 
-    pathNumpy = '.\\numpyFiles'
-    pathData = '.\\dataset'
+    pathNumpy = './numpyFiles'
+    pathData = './dataset'
     resizeImg = True
     imgSize = (50, 50)
     launchConversion(pathData, pathNumpy, resizeImg, imgSize)

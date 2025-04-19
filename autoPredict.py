@@ -1,152 +1,106 @@
-#IMPORT
-from keras.models import load_model
-from PIL import Image
-import numpy as np
-import time
-import pyaudio
+# voice_predictor_web.py
 import os
-from tqdm import tqdm
+import time
 import wave
+import torch
 import librosa
 import librosa.display
+import numpy as np
+from PIL import Image
+from tqdm import tqdm
+from aiohttp import web
 import matplotlib.pyplot as plt
+from torchvision import transforms
+from torch_model import load_model_from_checkpoint
+
+# === Audio parameters ===
+FORMAT = 8  # corresponds to pyaudio.paInt16
+CHANNELS = 1
+RATE = 44100
+CHUNK = 1024
+RECORD_SECONDS = 2
+SOUND_PATH = './testAudio/test.wav'
+SOUND_SIZE = (50, 50)
+MODEL_PATH = './trainedModel/best_model.pt'
+LABELS = ['chat', 'chien']
+
+# === Model and device ===
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = load_model_from_checkpoint(MODEL_PATH, device)
+
+# === Image preprocessing ===
+transform = transforms.Compose([
+    transforms.Resize(SOUND_SIZE),
+    transforms.ToTensor()
+])
 
 
+def predict_from_audio(path_to_wav: str):
+    y, sr = librosa.load(path_to_wav)
+    spec = librosa.feature.melspectrogram(y=y, sr=sr)
+    librosa.display.specshow(librosa.power_to_db(spec, ref=np.max))
 
-"""
-# Classe permettant de réaliser une prédiction sur une nouvelle donnée
-"""
+    canvas = plt.get_current_fig_manager().canvas
+    canvas.draw()
+    plt.tight_layout(pad=0)
+    plt.axis('off')
+    img = Image.frombytes('RGB', canvas.get_width_height(), canvas.tostring_argb())
+    plt.close()
+
+    img = transform(img).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        output = model(img)
+        prediction = torch.softmax(output, dim=1)[0].cpu().numpy()
+
+    max_index = np.argmax(prediction)
+    predicted_label = LABELS[max_index]
+    confidence = prediction[max_index] * 100
+
+    return predicted_label, confidence, prediction
 
 
-def main():
+async def handle_predict(request):
+    data = await request.post()
+    audio_file = data['audio'].file
+
+    with open(SOUND_PATH, 'wb') as f:
+        f.write(audio_file.read())
+
+    label, conf, all_preds = predict_from_audio(SOUND_PATH)
+    print(all_preds)
+
+    return web.json_response({
+        "label": label,
+        "confidence": f"{conf:.2f}%",
+        "all_predictions": {LABELS[i]: float(f"{p * 100:.2f}") for i, p in enumerate(all_preds)}
+    })
+
+
+async def index(request):
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Voice Classifier</title>
+    </head>
+    <body>
+        <h1>Upload a WAV file for classification</h1>
+        <form action="/predict" method="post" enctype="multipart/form-data">
+            <input type="file" name="audio" accept="audio/wav" required>
+            <br><br>
+            <button type="submit">Submit</button>
+        </form>
+    </body>
+    </html>
     """
-    # On definit les chemins d'acces au différentes hyper parametre
-    """
-
-    # On définit les specs de notre fichier audio de test
-    format = pyaudio.paInt16
-    channels = 2
-    rate = 44100
-    chunk = 1024
-    recordTime = 2
+    return web.Response(text=html, content_type='text/html')
 
 
-    modelPath = '.\\trainedModel\\moModel.hdf5'
-    soundPath =  '.\\testAudio\\test.wav'
-    soundSize = (50,50)
-    labels = ['chat', 'chien']
+app = web.Application()
+app.router.add_get('/', index)
+app.router.add_post('/predict', handle_predict)
 
-
-    record(format, channels, rate, chunk, recordTime, soundPath, soundSize, modelPath, labels)
-
-
-def record(format, channels, rate, chunk, recordTime,soundPath, soundSize, modelPath, labels):
-    """
-    # Fonction permettant d'enregistrer notre voix pour lancer plusieurs tests à la suite
-    :param format: taille de chaque sample
-    :param channels: nombre de canaux
-    :param rate: taux d'echantillonage
-    :param chunk: nombre de frame dans le buffer
-    :param recordTime: temps d'enregistrement
-    :param soundPath: chemin ou on va record notre audio
-    :param soundSize: taille du spectre converti en image depuis notre .wav
-    :param modelPath: chemin ou est notre modèle enregistré
-    :param labels: nos classes de prédictions
-    """
-
-    while True:
-
-        # Chargement modèle, timer et biblio audio
-        start = time.time()
-        model = load_model(modelPath)
-        audio = pyaudio.PyAudio()
-
-        # Début enregistrement
-        stream = audio.open(format=format, channels=channels, rate=rate, input=True, frames_per_buffer=chunk)
-
-        os.system('cls')
-
-        # Enregistrement de la voix
-        frames = []
-        for i in tqdm(range(0, int(rate / chunk * recordTime)), "> Enregistrement... "):
-            data = stream.read(chunk)
-            frames.append(data)
-
-        # On stop l'enregistrement
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
-        print("Enregistrement OK")
-
-        # On enregistre l'extrait audio en fichier wav
-        waveFile = wave.open(soundPath, 'wb')
-        waveFile.setnchannels(channels)
-        waveFile.setsampwidth(audio.get_sample_size(format))
-        waveFile.setframerate(rate)
-        waveFile.writeframes(b''.join(frames))
-        waveFile.close()
-
-        print("\n> Début...")
-        start = time.time()
-
-        # On traite le fichier audio vers un tableau
-        print("\n    * Traitement des données...", end='', flush=True)
-        data = []
-        y, sr = librosa.load(soundPath)
-
-        # Calcul du mel spectro selon notre audio
-        temp = librosa.feature.melspectrogram(y=y, sr=sr)
-        librosa.display.specshow(librosa.power_to_db(temp, ref=np.max))
-
-        # On convertit en image pour retaille la taille de l'image
-        canvas = plt.get_current_fig_manager().canvas
-        canvas.draw()
-        plt.tight_layout(pad=0)
-        plt.axis('off')
-        img = Image.frombytes('RGB', canvas.get_width_height(), canvas.tostring_rgb())
-        img = img.resize(size=soundSize)
-        img = np.asarray(img) / 255.
-        data.append(img)
-        plt.close()
-        data = np.asarray(data)
-        print("OK")
-
-        # On reshape notre tableau pour l'entrée de notre convNet
-        dimension = data[0].shape
-        data = data.astype(np.float32).reshape(data.shape[0], dimension[0], dimension[1], dimension[2])
-
-        # On prédit
-        print("\n    * Prédiction du réseau de neurones...", end='', flush=True)
-        prediction = model.predict(data)
-        print("OK")
-
-        # On recupere le numero de label qui a la plus haut prediction
-        maxPredict = np.argmax(prediction)
-
-        # On recupere le mot correspondant à l'indice precedent
-        word = labels[maxPredict]
-        pred = prediction[0][maxPredict] * 100.
-        end = time.time()
-
-        # On affiche les prédictions
-        print()
-        print('----------')
-        print(" Prediction :")
-        for i in range(0, len(labels)):
-            print('     ' + labels[i] + ' : ' + "{0:.2f}%".format(prediction[0][i] * 100.))
-
-        print()
-        print('RESULTAT : ' + word + ' : ' + "{0:.2f}%".format(pred))
-        print('temps prediction : ' + "{0:.2f}secs".format(end - start))
-
-        print('----------')
-        again = input("\nRecommencer ? (O/N) ")
-        if again == 'n':
-            return
-
-
-if __name__ == "__main__":
-    """
-    # MAIN
-    """
-    main()
+if __name__ == '__main__':
+    os.makedirs('./testAudio', exist_ok=True)
+    web.run_app(app, port=8080)

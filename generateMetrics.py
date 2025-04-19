@@ -43,7 +43,7 @@ def plot(X, Y, Y2, title, xLabel, yLabel, legendLoc, pathSaveGraph):
     plt.legend(['train', 'val'], loc=legendLoc)
    #Pour avoir un courbe propre qui demarre à 0
     plt.xlim(xmin=0.0, xmax=max(X))
-    plt.savefig(pathSaveGraph +'\\' + title)
+    plt.savefig(pathSaveGraph +'/' + title)
     plt.figure()
     #plt.show()
 
@@ -54,8 +54,8 @@ def main():
     """
 
     #Definition des chemins d'acces a notre fichier log
-    pathLogs = '.\\logs\\log_moModel.csv'
-    pathSaveGraph = '.\\graph'
+    pathLogs = './logs/log_moModel.csv'
+    pathSaveGraph = './graph'
     displayGraph(pathLogs,pathSaveGraph)
 
 
