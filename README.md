@@ -1,85 +1,101 @@
-# Infos
-Code source du tutoriel de https://deeplylearning.fr/cours-pratiques-deep-learning/reconnaissance-vocale-de-mots-cles/
+# 📁 Dataset Generation for Keyword Spotting
 
-Permet de creer avec Tensorflow et Keras une reconnaissance vocale de mots clés entre 2 types de mots différentes, avec des algorithmes de deep learning.
+This guide helps you create a **balanced dataset** for training a keyword spotter (e.g., detecting "Hello Lilio"). You’ll use **text-to-speech**, **mel-spectrogram conversion**, and optionally save as `.npy` for training a neural network.
 
-## Installer les pré-requis
-Permet d'installer les différentes bibliothèques essentiel pour réaliser des algorithmes de deep learning. Optionnel si vous avez déjà votre environnement pré-configuré.
+---
 
-`$ install.bat`
+## 🛠 Tools Required
 
-## Generer les tableaux numpy
-Changer les chemins si nécessaire :
+- Python 3.8+
+- `librosa`, `matplotlib`, `numpy`, `soundfile`
+- (optional) a TTS model like **`hexgrad/Kokoro-82M`** or **Coqui TTS** for generating voices
 
-| Attribut | Description                    |
-| ------------- | ------------------------------ |
-| `pathNumpy`      | Destination ou seront sauvegarder les tableaux      |
-| `pathData`   | Chemin ou sont les images en format png    |
-| `imgResize`   | On met l'ensemble du dataset à la même taille    | 
+---
 
-Lancer la commande suivante :
+## 📁 Dataset Structure
 
-`$ python generateNumpyFiles.py`
+Organize your dataset as:
 
-## Entrainer le model
-Changer les chemins si nécessaire :
+```
+./dataset/
+├── positive/        # Samples with "Hello Lilio"
+└── negative/        # Samples with anything else
+```
 
-| Attribut | Description                    |
-| ------------- | ------------------------------ |
-| `csv_logger`      | Chemin du callbak permettant l'enregistrement des metriques      |
-| `check`   | Chemin du callback permettant d'enregistrer le modèle sous format hdf5    |
-| `pathData`   | Chemin des tableaux numpy   |
-| `trainRatio`   | Ratio définissant la taille du jeu d'entrainemnt et de validation   |
-| `batch_size`   | Nombre d'item que on envoi sur une phase de feedforward/backpropagation   |
-| `earlyStopPatience`   | Permet de définir l'arrêt de l'entrainement, lorsque les données de précision sur le jeu de validation n'évolu plus  |
+Each folder contains `.npy` files of mel-spectrograms.
 
-Lancer la commande suivante :
+---
 
-`$ python trainModel.py`
+## 🔊 Step 1: Generate Audio Samples
 
-## Generer les graphiques de suivi de métriques
-Changer les chemins si nécessaire :
+Use any TTS engine to generate `.wav` files:
 
-| Attribut | Description                    |
-| ------------- | ------------------------------ |
-| `pathLogs`      | Destination ou est notre fichier de métriques au format CSV      |
-| `pathSaveGraph`   | Chemin ou on va sauvegarder    |
+```python
+from transformers import pipeline
+import soundfile as sf
 
-Lancer la commande suivante :
+# Load TTS pipeline (example)
+tts = pipeline("text-to-speech", model="hexgrad/Kokoro-82M")
 
-`$ python generateMetrics.py`
+sentences = [
+    "Bonjour Lilio", "Salut Lilio", "Hello Lilio", "Coucou Lilio",
+    "Comment vas-tu Lilio", "Hey Lilio", "Lilio est là?"
+]
 
-## Generer la matrice de confusion
-Changer les chemins si nécessaire :
+for i, text in enumerate(sentences):
+    output = tts(text, voice="af_sky")
+    sf.write(f"positive/sample_{i}.wav", output["audio"], samplerate=16000)
+```
 
-| Attribut | Description                    |
-| ------------- | ------------------------------ |
-| `modelPath`      | Destination ou est stocké notre modele pré entrainé      |
-| `datasetTestPath`   | Chemin ou sont les audios de test    |
-| `destinationMatrix`   | Destination ou on va sauvegarder notre matrice     |
-| `imageSize`   | On met l'ensemble du dataset à la même taille    |
+Repeat with **non-keyword sentences** for the `negative` class.
 
-Lancer la commande suivante :
+---
 
-`$ python generateConfusionMatrix.py`
+## 🎛️ Step 2: Convert WAV to Mel-Spectrogram
 
-## Realiser une prédiction sur une nouvelle donnée
-Changer les chemins si nécessaire :
+```python
+import librosa
+import numpy as np
+import matplotlib.pyplot as plt
+import os
 
-| Attribut | Description                    |
-| ------------- | ------------------------------ |
-| `modelPath`      | Chemin du model au format hdf5 pour le charger en memoire      |
-| `soundPath`   | Chemin de l audio que l'on doit predire    |
-| `soundSize`   | Doit être identique aux tailles d audio d'entrainement    |
-| `labels`   | Libéllé des classes à prédire    |
-| `format`   | Doit être identique aux tailles d image d entrainement    |
-| `channels`   | Nombre de canaux de l audio    |
-| `chunk`   | Taille du buffer de l audio    |
-| `rate`   | Taux d échantillonage de l audio   |
-| `recordTime`   | Temps d enregistrement de l audio   |
+output_dir = "./dataset/positive"  # or "negative"
+os.makedirs(output_dir, exist_ok=True)
 
+for i, filename in enumerate(os.listdir("positive_wavs/")):
+    y, sr = librosa.load(f"positive_wavs/{filename}")
+    mel = librosa.feature.melspectrogram(y=y, sr=sr)
+    mel_db = librosa.power_to_db(mel, ref=np.max)
+    np.save(f"{output_dir}/sample_{i}.npy", mel_db)
+```
 
+You now have `.npy` files ready for training.
 
-Puis lancer la commande suivante :
+---
 
-`$ python autoPredict.py`
+## 🧠 Step 3: Train the Model
+
+Use a CNN (e.g., `Conv2D + ReLU + MaxPool + Flatten + Dense + Sigmoid`) on mel-spectrograms loaded from `.npy` files.
+
+---
+
+## ✅ Tips
+
+- Use **10-30 seconds** of varied examples per class for small models.
+- Normalize all mel-spectrograms to the same shape (e.g., 50x50 or 64x64)
+- Augment data with **noise**, **speed variation**, or **pitch shift**
+
+---
+
+## 📦 Optional Enhancements
+
+- Save `train.csv` file mapping each `.npy` to its label
+- Include speaker variation
+- Use real recorded voices from `sounddevice` for robustness
+
+---
+
+## Questions?
+
+Want to automate the whole pipeline? I can generate a script to batch-generate and convert everything for you. 😉
+
