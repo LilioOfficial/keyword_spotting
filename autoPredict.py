@@ -54,10 +54,12 @@ def predict_from_audio(path_to_wav: str):
         prediction = torch.softmax(output, dim=1)[0].cpu().numpy()
 
     max_index = np.argmax(prediction)
-    predicted_label = LABELS[max_index]
-    confidence = prediction[max_index] * 100
+    prediction = torch.softmax(output, dim=1)[0].cpu().numpy()
+    confidence = prediction[max_index]  # assuming class 1 = keyword
 
-    return predicted_label, confidence, prediction
+    threshold = 0.7  # set your confidence threshold
+    result = 1 if confidence > threshold else 0
+    return result, confidence, prediction
 
 
 async def handle_predict(request):
@@ -68,7 +70,6 @@ async def handle_predict(request):
         f.write(audio_file.read())
 
     label, conf, all_preds = predict_from_audio(SOUND_PATH)
-    print(all_preds)
 
     return web.json_response({
         "label": label,

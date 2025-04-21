@@ -6,7 +6,7 @@ import os
 
 
 class TorchModel(nn.Module):
-    def __init__(self, input_shape, num_classes):
+    def __init__(self, input_shape):
         super().__init__()
         channels, height, width = input_shape
         self.net = nn.Sequential(
@@ -18,7 +18,7 @@ class TorchModel(nn.Module):
             nn.Linear(32 * ((height - 1) // 2) * ((width - 1) // 2), 128),
             nn.ReLU(),
             nn.Dropout(0.25),
-            nn.Linear(128, num_classes)
+            nn.Linear(128, 1)
         )
 
     def forward(self, x):
@@ -34,10 +34,9 @@ def load_model_from_checkpoint(path: str, device=None) -> nn.Sequential:
     input_channels = 3
     input_height = 50
     input_width = 50
-    num_classes = 2
     shape = (input_channels,input_height,input_width)
 
-    model = TorchModel(shape, num_classes).to(device)
+    model = TorchModel(shape).to(device)
 
     state_dict = torch.load(path, map_location=device)
     model.load_state_dict(state_dict)

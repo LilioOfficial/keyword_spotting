@@ -13,13 +13,9 @@ import torch.nn.functional as F
 from torchvision import transforms
 from torch_model import load_model_from_checkpoint  # assumes you've created this function in your torch model file
 
-
 def generateMatrix(model, datasetTestPath, imageSize, destinationMatrix, device):
     y_true = []
     y_pred = []
-    total = 0
-    success = 0
-    index = 0
 
     transform = transforms.Compose([
         transforms.Resize(imageSize),
@@ -30,7 +26,7 @@ def generateMatrix(model, datasetTestPath, imageSize, destinationMatrix, device)
 
     print('\nEvaluation :')
     for root, dirs, files in os.walk(datasetTestPath):
-        for mydir in dirs:
+        for label_index, mydir in enumerate(dirs):
             for sample in tqdm(os.listdir(os.path.join(root, mydir)), f"Prédiction de la classe '{mydir}'"):
                 sample_path = os.path.join(root, mydir, sample)
                 y, sr = librosa.load(sample_path)
@@ -39,26 +35,22 @@ def generateMatrix(model, datasetTestPath, imageSize, destinationMatrix, device)
                 canvas = plt.get_current_fig_manager().canvas
                 canvas.draw()
                 img = Image.frombytes('RGB', canvas.get_width_height(), canvas.tostring_argb())
-                img = transform(img)
-                img = img.unsqueeze(0).to(device)
+                plt.close()
+
+                img = transform(img).unsqueeze(0).to(device)
 
                 with torch.no_grad():
-                    output = model(img)
-                    pred = output.argmax(dim=1).item()
+                    output = model(img).squeeze(1)  # shape [1]
+                    prob = torch.sigmoid(output).item()
+                    pred = 1 if prob > 0.5 else 0
 
-                total += 1
-                if pred == index:
-                    success += 1
-
-                y_true.append(index)
+                y_true.append(label_index)
                 y_pred.append(pred)
 
-            index += 1
-
-    accuracy = (success / total) * 100.
+    cnf_matrix = confusion_matrix(y_true, y_pred)
+    accuracy = np.trace(cnf_matrix) / np.sum(cnf_matrix) * 100.
     print('\nPrécision : {0:.3f}%'.format(accuracy))
 
-    cnf_matrix = confusion_matrix(y_true, y_pred)
     np.set_printoptions(precision=2)
     plt.figure()
 
@@ -78,7 +70,8 @@ def generateMatrix(model, datasetTestPath, imageSize, destinationMatrix, device)
     fmt = '.2f'
     thresh = cnf_matrix.max() / 2.
     for i, j in itertools.product(range(cnf_matrix.shape[0]), range(cnf_matrix.shape[1])):
-        plt.text(j, i, format(cnf_matrix[i, j], fmt), horizontalalignment="center", color="white" if cnf_matrix[i, j] > thresh else "black")
+        plt.text(j, i, format(cnf_matrix[i, j], fmt), horizontalalignment="center",
+                 color="white" if cnf_matrix[i, j] > thresh else "black")
 
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
@@ -86,7 +79,6 @@ def generateMatrix(model, datasetTestPath, imageSize, destinationMatrix, device)
 
     os.makedirs(destinationMatrix, exist_ok=True)
     plt.savefig(os.path.join(destinationMatrix, 'confusionMatrix.png'))
-
 
 def main():
     modelPath = './trainedModel/best_model.pt'
@@ -97,7 +89,6 @@ def main():
 
     model = load_model_from_checkpoint(modelPath, device)
     generateMatrix(model, datasetTestPath, imageSize, destinationMatrix, device)
-
 
 if __name__ == "__main__":
     main()
