@@ -8,22 +8,21 @@ import os
 class TorchModel(nn.Module):
     def __init__(self, input_shape):
         super().__init__()
-        channels, height, width = input_shape
+        c, h, w = input_shape
         self.net = nn.Sequential(
-            nn.Conv2d(channels, 32, kernel_size=2),
+            nn.Conv2d(c, 32, kernel_size=(2, 2)),
             nn.ReLU(),
-            nn.MaxPool2d(2),
+            nn.MaxPool2d(kernel_size=(2, 2)),
             nn.Dropout(0.25),
             nn.Flatten(),
-            nn.Linear(32 * ((height - 1) // 2) * ((width - 1) // 2), 128),
+            nn.Linear(32 * ((h - 1) // 2) * ((w - 1) // 2), 128),
             nn.ReLU(),
             nn.Dropout(0.25),
-            nn.Linear(128, 1)
+            nn.Linear(128, 1)  # For BCEWithLogitsLoss
         )
 
     def forward(self, x):
         return self.net(x)
-
 
 
 def load_model_from_checkpoint(path: str, device=None) -> nn.Sequential:

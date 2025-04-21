@@ -22,7 +22,7 @@ RECORD_SECONDS = 2
 SOUND_PATH = './testAudio/test.wav'
 SOUND_SIZE = (50, 50)
 MODEL_PATH = './trainedModel/best_model.pt'
-LABELS = ['chat', 'chien']
+LABELS = ['positive', 'negative']
 
 # === Model and device ===
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
