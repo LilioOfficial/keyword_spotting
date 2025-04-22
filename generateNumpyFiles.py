@@ -55,10 +55,13 @@ if __name__ == "__main__":
         if (i.endswith(".wav")):
             list_neg_files.append(f'{AUDIO_DIR}/negative/{i}')
         else:
-            file_names = os.listdir(f'{AUDIO_DIR}/positive/{i}')
+            print(f"🔧 {i} is not a .wav file")
+            file_names = os.listdir(f'{AUDIO_DIR}/negative/{i}')
             for j in file_names:
-                list_neg_files.append(f'{AUDIO_DIR}/positive/{i}/{j}')
+                list_neg_files.append(f'{AUDIO_DIR}/negative/{i}/{j}')
 
+    print(f"🔧 Positive: {len(list_pos_files)} files"
+          f"\n🔧 Negative: {len(list_neg_files)} files")
 
     process_folder(list_pos_files,label_test= "positiveTest", label="positive")
     process_folder( list_neg_files, label="negative", label_test="negativeTest")
