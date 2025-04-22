@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 # ---- Configuration par défaut ----
 SR = 24000
-AUG_PER_FILE = 3
+AUG_PER_FILE = 5
 
 # ---- Augmentation primitives ----
 def add_background_noise(audio, noise_level=0.005):
@@ -22,7 +22,7 @@ def shift_audio(audio, max_shift=0.2):
 
 def stretch_audio(audio, rate_range=(0.8, 1.2)):
     rate = random.uniform(*rate_range)
-    return librosa.effects.time_stretch(audio, rate)
+    return librosa.effects.time_stretch(audio, rate=rate)
 
 def pitch_shift_audio(audio, sr=SR, pitch_range=(-2, 2)):
     n_steps = random.uniform(*pitch_range)

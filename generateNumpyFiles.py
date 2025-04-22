@@ -9,7 +9,7 @@ from preprocessing import extract_features  # import from your module
 
 AUDIO_DIR = "dataset"
 OUTPUT_DIR = "numpyFiles"
-MAX_FILES = 1000
+MAX_FILES = 300
 SR = 24000
 
 def process_wav_to_tensor(wav_path):
@@ -21,21 +21,16 @@ def process_wav_to_tensor(wav_path):
         print(f"[ERROR] {wav_path} → {e}")
         return None
 
-def process_folder(label, label_test):
-    input_folder = os.path.join(AUDIO_DIR, label)
-    files = sorted([f for f in os.listdir(input_folder) if f.endswith(".wav")])[:MAX_FILES*2]
+def process_folder(files, label_test, label):
     train_files = files[:MAX_FILES]
     test_files = files[MAX_FILES:]
 
     print(f"🔧 {label}: {len(train_files)} train, {len(test_files)} test")
 
-    def make_tasks(file_list, subfolder):
-        return [os.path.join(input_folder, f) for f in file_list]
-
     # Parallel processing
     with mp.Pool(mp.cpu_count()) as pool:
-        train_data = list(tqdm(pool.imap(process_wav_to_tensor, make_tasks(train_files, label)), total=len(train_files), desc=f"{label} Train"))
-        test_data = list(tqdm(pool.imap(process_wav_to_tensor, make_tasks(test_files, label_test)), total=len(test_files), desc=f"{label} Test"))
+        train_data = list(tqdm(pool.imap(process_wav_to_tensor, train_files), total=len(train_files), desc=f"{label} Train"))
+        test_data = list(tqdm(pool.imap(process_wav_to_tensor, test_files), total=len(test_files), desc=f"{label} Test"))
 
     train_data = np.array([x for x in train_data if x is not None], dtype=np.float32)
     test_data = np.array([x for x in test_data if x is not None], dtype=np.float32)
@@ -46,5 +41,24 @@ def process_folder(label, label_test):
     print(f"✅ Saved {label}.npy {train_data.shape} and {label_test}.npy {test_data.shape}")
 
 if __name__ == "__main__":
-    process_folder("positive", "positiveTest")
-    process_folder("negative", "negativeTest")
+    #join all files from subdirs
+    list_pos_files = []
+    dir = os.listdir(f'{AUDIO_DIR}/positive')
+    for i in dir:
+        file_names = os.listdir(f'{AUDIO_DIR}/positive/{i}')
+        for j in file_names:
+            list_pos_files.append(f'{AUDIO_DIR}/positive/{i}/{j}')
+        
+    list_neg_files = []
+    dir = os.listdir(f'{AUDIO_DIR}/negative')
+    for i in dir:
+        if (i.endswith(".wav")):
+            list_neg_files.append(f'{AUDIO_DIR}/negative/{i}')
+        else:
+            file_names = os.listdir(f'{AUDIO_DIR}/positive/{i}')
+            for j in file_names:
+                list_neg_files.append(f'{AUDIO_DIR}/positive/{i}/{j}')
+
+
+    process_folder(list_pos_files,label_test= "positiveTest", label="positive")
+    process_folder( list_neg_files, label="negative", label_test="negativeTest")

@@ -25,7 +25,7 @@ POSITIVE_SENTENCES = [
 
 def generateNegativeDataset():
     # === Paramètres ===
-    OUTPUT_DIR = "./dataset/negative"
+    OUTPUT_DIR = "./dataset/negative/auto"
     NB_SAMPLES = 500
     TARGET_DURATION = 2.0  # en secondes
     TARGET_SR = 16000
@@ -37,10 +37,11 @@ def generateNegativeDataset():
     # === Charger le dataset Common Voice ou Fleurs français
     cv = load_dataset("google/fleurs", "fr_fr", split=f"train[:{NB_SAMPLES}]", trust_remote_code=True)
 
-    sample_id = 0  # Compteur global
 
     # === Parcourir les échantillons
     for i, sample in enumerate(tqdm.tqdm(cv, desc="🔉 Découpe des fichiers audio")):
+        if (i >= NB_SAMPLES):
+            break
         audio = sample["audio"]
         waveform = torch.tensor(audio["array"], dtype=torch.float32).unsqueeze(0)
         sample_rate = audio["sampling_rate"]
@@ -57,12 +58,11 @@ def generateNegativeDataset():
             end = start + TARGET_LEN
             segment = waveform[:, start:end]
 
-            output_path = os.path.join(OUTPUT_DIR, f"negative_{sample_id:06d}.wav")
+            output_path = os.path.join(OUTPUT_DIR, f"negative_{i:06d}.wav")
             torchaudio.save(output_path, segment, sample_rate=TARGET_SR)
-            sample_id += 1
 
-def auto_generate_audio(pipeline,phrases, directory, count, prefix):
-    len_custom = len(os.listdir("dataset/positive"))
+def auto_generate_audio(pipeline : KPipeline,phrases, directory, count, prefix):
+    len_custom = len(os.listdir("dataset/positive/normal"))
     for i in tqdm.tqdm(range(count), desc=f"Generating {prefix} samples"):
         text = random.choice(phrases)
         voice = random.choice(VOICES)
@@ -71,6 +71,16 @@ def auto_generate_audio(pipeline,phrases, directory, count, prefix):
         filepath = os.path.join(directory, filename)
         for i, (gs, ps, audio) in enumerate(generator):
             print(i, gs, ps)
+            duration = len(audio) / 24000
+            if duration > 2.0:
+               audio = audio[:int(2.0 * 24000)]
+               print("Truncated to 2 seconds")
+               print(audio.shape)
+               print(audio)
+            else:
+                print("Need to pad")
+                audio = np.pad(audio, (0, int(2.0 * 24000) - len(audio)), mode='constant')
+            
             display(Audio(data=audio, rate=24000, autoplay=i==0))
             sf.write(filepath, audio, 24000)
 
@@ -113,7 +123,7 @@ def main():
     if args.auto:
         pipeline = KPipeline(lang_code='fr-fr', repo_id='hexgrad/Kokoro-82M')
         if args.type == "positive":
-            auto_generate_audio(pipeline,POSITIVE_SENTENCES, "dataset/positive", 1000, args.type)
+            auto_generate_audio(pipeline,POSITIVE_SENTENCES, "dataset/positive/auto", 100, args.type)
         elif args.type == "negative":
             generateNegativeDataset()
         
