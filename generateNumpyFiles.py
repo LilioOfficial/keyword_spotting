@@ -9,7 +9,7 @@ from preprocessing import extract_features  # import from your module
 
 AUDIO_DIR = "dataset"
 OUTPUT_DIR = "numpyFiles"
-MAX_FILES = 300
+RATIO = 1
 SR = 24000
 
 def process_wav_to_tensor(wav_path):
@@ -21,9 +21,9 @@ def process_wav_to_tensor(wav_path):
         print(f"[ERROR] {wav_path} → {e}")
         return None
 
-def process_folder(files, label_test, label):
-    train_files = files[:MAX_FILES]
-    test_files = files[MAX_FILES:]
+def process_folder(files, label_test, label, max_files):
+    train_files = files[:max_files]
+    test_files = files[max_files:]
 
     print(f"🔧 {label}: {len(train_files)} train, {len(test_files)} test")
 
@@ -40,28 +40,28 @@ def process_folder(files, label_test, label):
     np.save(os.path.join(OUTPUT_DIR, f"{label_test}.npy"), test_data)
     print(f"✅ Saved {label}.npy {train_data.shape} and {label_test}.npy {test_data.shape}")
 
-if __name__ == "__main__":
-    #join all files from subdirs
+def listFolders(path):
     list_pos_files = []
-    dir = os.listdir(f'{AUDIO_DIR}/positive')
-    for i in dir:
-        file_names = os.listdir(f'{AUDIO_DIR}/positive/{i}')
-        for j in file_names:
-            list_pos_files.append(f'{AUDIO_DIR}/positive/{i}/{j}')
-        
-    list_neg_files = []
-    dir = os.listdir(f'{AUDIO_DIR}/negative')
+    dir = os.listdir(path)
+    print(f"🔧 {path}: {len(dir)} files")
     for i in dir:
         if (i.endswith(".wav")):
-            list_neg_files.append(f'{AUDIO_DIR}/negative/{i}')
+            list_pos_files.append(f'{path}/{i}')
         else:
-            print(f"🔧 {i} is not a .wav file")
-            file_names = os.listdir(f'{AUDIO_DIR}/negative/{i}')
-            for j in file_names:
-                list_neg_files.append(f'{AUDIO_DIR}/negative/{i}/{j}')
+            list_pos_files.extend(listFolders(f'{path}/{i}'))
+    return list_pos_files
+
+if __name__ == "__main__":
+    #join all files from subdirs
+    list_pos_files = listFolders(f'{AUDIO_DIR}/positive')
+        
+    list_neg_files = listFolders(f'{AUDIO_DIR}/negative')
 
     print(f"🔧 Positive: {len(list_pos_files)} files"
           f"\n🔧 Negative: {len(list_neg_files)} files")
+    
+    max_files = int(len(list_pos_files) * RATIO)
+    print(f"🔧 Using {max_files} files for training")
 
-    process_folder(list_pos_files,label_test= "positiveTest", label="positive")
-    process_folder( list_neg_files, label="negative", label_test="negativeTest")
+    process_folder(list_pos_files,label_test= "positiveTest", label="positive", max_files=max_files)
+    process_folder( list_neg_files, label="negative", label_test="negativeTest", max_files=max_files*2)

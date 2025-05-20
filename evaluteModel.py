@@ -9,12 +9,13 @@ import librosa
 import os
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
-from torch_model import KeywordCNN
+from models import KeywordCNN
 from preprocessing import extract_features
 import soundfile as sf
+import time
 
 # ---- CONFIG ----
-MODEL_PATH = "trainedModel/best_model.pt"
+MODEL_PATH = "trainedModel/waveform_model.pt"
 SR = 24000
 DURATION = 2.0
 THRESHOLD = 0.5
@@ -57,9 +58,9 @@ def from_wav_file(path):
 
 # ---- From test .npy files ----
 def from_npy():
-    X = np.load("./numpyFiles/positiveTest.npy")
+    X = np.load("./numpyFiles/positive.npy")
     Y = np.ones(len(X))
-    X_neg = np.load("./numpyFiles/negativeTest.npy")
+    X_neg = np.load("./numpyFiles/negative.npy")
     Y_neg = np.zeros(len(X_neg))
     X = np.concatenate([X, X_neg], axis=0)
     Y = np.concatenate([Y, Y_neg], axis=0)
@@ -80,12 +81,34 @@ def from_npy():
     plt.title("Confusion Matrix")
     plt.show()
 
+
+
+# ---- Continuous microphone evaluation ----
+def continuous_detection():
+    print("🎤 Continuous mode — speak naturally. Say the keyword to trigger detection.")
+    try:
+        while True:
+            audio = sd.rec(int(DURATION * SR), samplerate=SR, channels=1, dtype='float32')
+            sd.wait()
+            audio = audio.flatten()
+            features = extract_features(audio)
+            detected = evaluate_tensor(features)
+            if detected:
+                print("🚨 Keyword detected!")
+                sf.write("testAudio/recording.wav", audio, SR)
+                break
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        print("🛑 Stopped.")
+
+
 # ---- CLI ----
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mic", action="store_true", help="Use microphone input")
     parser.add_argument("--npy", action="store_true", help="Evaluate full dataset")
     parser.add_argument("--wav", type=str, help="Path to a .wav file to evaluate")
+    parser.add_argument("--cont", action="store_true", help="Continuous detection from microphone")
     args = parser.parse_args()
 
     if args.mic:
@@ -94,5 +117,7 @@ if __name__ == "__main__":
         from_npy()
     elif args.wav:
         from_wav_file(args.wav)
+    elif args.cont:
+        continuous_detection()
     else:
-        print("❗ Use one of: --mic | --npy | --wav <file>")
+        print("❗ Use one of: --mic | --npy | --wav <file> | --cont")

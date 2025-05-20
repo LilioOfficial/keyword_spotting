@@ -10,7 +10,7 @@ from torchtnt.utils.loggers import CSVLogger
 from tqdm import trange
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-from torch_model import KeywordCNN
+from models import KeywordCNN
 
 # Device setup
 if torch.backends.mps.is_available():
